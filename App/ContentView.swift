@@ -28,7 +28,7 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(store.usingSimulator
-                 ? "DEMO writes only the simulated calculator on this Mac. A real HP 15C is not changed."
+                 ? "DEMO writes only the simulated calculator on this Mac. A real calculator is not changed."
                  : "FLASH writes a real calculator. User memory will be wiped. The bootloader at 0x0000–0x3FFF is not overwritten.")
         }
         .confirmationDialog(
@@ -62,6 +62,9 @@ struct ContentView: View {
                             flashPagePreview(header: header, lines: store.flashPageLines)
                         }
                     }
+                    if store.wizard.step == .flash, store.wizard.flashSucceeded {
+                        firmwareMessageBox([(label: "", message: "Flashed and verified.")], caution: false)
+                    }
                     if let banner = store.stepBanner {
                         wrappingText(banner.text)
                             .foregroundStyle(banner.caution ? Color.orange : Color.green)
@@ -88,11 +91,11 @@ struct ContentView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("15CE Flasher")
+                Text(store.appTitle)
                     .font(.largeTitle.weight(.semibold))
                 Text(store.usingSimulator
                      ? "DEMO — simulated Collector’s Edition"
-                     : "Native SAM-BA programmer for the Collector’s Edition")
+                     : "Native SAM-BA programmer for the post-2015 Voyager series")
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -133,7 +136,7 @@ struct ContentView: View {
                 wrappingText("DEMO uses a simulated calculator. You do not need a cable. Follow the same steps so FLASH is familiar later.")
                     .foregroundStyle(.secondary)
             }
-            warningBox("Use the POGO cable only on the HP 15C Collector’s Edition. This app will not flash other calculators. Do not use the cable on an HP 15C Limited Edition, a pre-2015 12C, an HP 20b, or an HP 30b, as it could permanently damage your calculator.")
+            warningBox("Use the POGO cable only on post-2015 Voyager calculators (15c CE, 16c CE, 12c). Do not use the cable on an HP 15c Limited Edition, a pre-2015 12c, an HP 20b, or an HP 30b, as it could permanently damage your calculator.")
         case .programmingMode:
             ProgrammingModeDiagram()
             wrappingText("On the cable's switch box, hold ERASE, press RESET, then release ERASE. The display stays off. The calculator's ON button is ignored in this state.")
@@ -145,15 +148,41 @@ struct ContentView: View {
             wrappingText("Once your calculator is recognized (“Connected: ATSAM4LC2C” is shown), continue with the next step.")
                 .foregroundStyle(.secondary)
         case .backup:
-            wrappingText("Save a copy of the currently installed firmware in case you want to restore it later.")
-            HStack {
-                Button("Save Backup…", action: store.backup)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!store.canBackup)
-                Button("Skip") { store.confirmSkipBackup = true }
-                    .disabled(store.wizard.isBusy)
+            if store.currentFirmware == nil {
+                if store.wizard.isBusy {
+                    wrappingText("Checking the firmware on the calculator…")
+                } else {
+                    wrappingText("Read the firmware on the calculator to see which version it has.")
+                    Button("Check Firmware", action: store.checkCurrentFirmware)
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                if let assessment = store.backupAssessment {
+                    firmwareMessageBox("Your current firmware:", assessment.message, caution: !assessment.isRecognized)
+                }
+                wrappingText("Do you want to save a backup of this firmware? You can use it to restore the calculator later.")
+                HStack {
+                    Button("Save Backup…", action: store.backup)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!store.canSaveBackup)
+                    Button("Skip") { store.confirmSkipBackup = true }
+                        .disabled(store.wizard.isBusy)
+                }
+                if store.wizard.backupResolved, !store.backupSkipped, let name = store.backupFileName {
+                    firmwareMessageBox([(label: "", message: "Backup saved as \(name).")], caution: false)
+                }
+                if store.backupSkipped {
+                    firmwareMessageBox(
+                        [(label: "", message: "Backup skipped. You may not have a copy of this firmware to restore later.")],
+                        caution: false,
+                        tone: .amber
+                    )
+                }
             }
         case .firmware:
+            if let current = store.backupAssessment {
+                firmwareMessageBox("Your current firmware:", current.summary, caution: !current.isRecognized, tone: .carriedOver)
+            }
             wrappingText("Choose a 114,688 (0x1C000) byte file with .bin extension. This app does not download HP firmware.")
             if store.wizard.firmwareOK {
                 Button("Choose Firmware…", action: store.chooseFirmware)
@@ -168,7 +197,11 @@ struct ContentView: View {
                     .font(.callout.monospaced())
                     .textSelection(.enabled)
             }
+            if let assessment = store.firmwareAssessment {
+                firmwareMessageBox("Selected firmware:", assessment.message, caution: assessment.isCaution)
+            }
         case .flash:
+            flashFirmwareSummary
             wrappingText("Write starts at address 0x04000. The SAM-BA bootloader below that address is left intact.")
             if store.wizard.flashSucceeded {
                 Button(store.usingSimulator ? "Flash Simulated Calculator" : "Flash Calculator") {
@@ -197,7 +230,7 @@ struct ContentView: View {
             }
             wrappingText("That value is the checksum of the installed firmware (the one you just flashed). Press ON a few times to exit the test menu.")
                 .foregroundStyle(.secondary)
-            wrappingText("If you received the expected checksum of \(store.expectedChecksumShort), then congratulations — you have successfully updated the firmware on your HP 15C Collector’s Edition.")
+            wrappingText("If you received the expected checksum of \(store.expectedChecksumShort), then congratulations — you have successfully updated the firmware on your \(store.flashedModelName ?? "calculator").")
             wrappingText("If you received a different checksum, all is not lost. A retry with either the new firmware or the original backup is likely to succeed.")
         }
     }
@@ -237,6 +270,88 @@ struct ContentView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel("Warning. \(text)")
+    }
+
+    /// Step 5 repeats both step 4 messages in one box.
+    @ViewBuilder
+    private var flashFirmwareSummary: some View {
+        let current = store.backupAssessment
+        let selected = store.firmwareAssessment
+        let lines = [
+            current.map { ("Your current firmware:", $0.summary) },
+            selected.map { ("Selected firmware:", $0.summary) },
+        ].compactMap { $0 }
+        if !lines.isEmpty {
+            firmwareMessageBox(
+                lines,
+                caution: (current.map { !$0.isRecognized } ?? false) || (selected?.isCaution ?? false),
+                tone: .carriedOver
+            )
+        }
+    }
+
+    private func firmwareMessageBox(_ label: String, _ message: String, caution: Bool, tone: MessageTone? = nil) -> some View {
+        firmwareMessageBox([(label, message)], caution: caution, tone: tone)
+    }
+
+    /// Message colors: green and amber for a message appearing for the first time,
+    /// blue (the current sidebar step's colors) for a message carried over from an earlier step.
+    private enum MessageTone {
+        case green
+        /// A caution, or a choice worth noting. Not an error.
+        case amber
+        case carriedOver
+    }
+
+    /// Step 3–5 messages. Without a tone, a new message is green, or amber when it is a caution.
+    /// A caution also adds a warning icon.
+    private func firmwareMessageBox(
+        _ lines: [(label: String, message: String)],
+        caution: Bool,
+        tone: MessageTone? = nil
+    ) -> some View {
+        let dark = colorScheme == .dark
+        let ink: Color
+        let accent: Color
+        switch tone ?? (caution ? .amber : .green) {
+        case .green:
+            ink = dark ? Color(red: 0.62, green: 0.90, blue: 0.68) : Color(red: 0.05, green: 0.33, blue: 0.14)
+            accent = sidebarGreen
+        case .amber:
+            ink = dark ? Color(red: 1.00, green: 0.80, blue: 0.50) : Color(red: 0.45, green: 0.25, blue: 0.00)
+            accent = Color(red: 0.96, green: 0.62, blue: 0.04)
+        case .carriedOver:
+            ink = .primary
+            accent = sidebarBlue
+        }
+        return HStack(alignment: .top, spacing: 8) {
+            if caution {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(lines.indices, id: \.self) { index in
+                    (lines[index].label.isEmpty
+                        ? Text(lines[index].message)
+                        : Text(lines[index].label + " ").bold() + Text(lines[index].message))
+                        .foregroundStyle(ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(accent.opacity(dark ? 0.18 : (tone == .carriedOver ? 0.10 : 0.14)))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(accent.opacity(0.85), lineWidth: 1.5)
+                }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var sidebarGreen: Color { Color(red: 0.20, green: 0.78, blue: 0.40) }

@@ -185,6 +185,13 @@ public struct Flasher {
 
     @discardableResult
     public func read(to fileURL: URL, client: SambaClient? = nil, progress: FlashProgress? = nil) throws -> Data {
+        let saved = try readApplication(client: client, progress: progress)
+        try saved.write(to: fileURL)
+        return saved
+    }
+
+    /// Reads the application region (`0x04000`, 112 KB) without writing a file.
+    public func readApplication(client: SambaClient? = nil, progress: FlashProgress? = nil) throws -> Data {
         var saved = Data()
         try withClient(client) { samba in
             let flash = FlashCalw(samba: samba)
@@ -193,7 +200,6 @@ public struct Flasher {
                 throw FlasherError.unsupportedDevice(name: identity.name, cidr: identity.cidr, exid: identity.exid)
             }
             saved = try flash.readApplication { progress?($0, .reading) }
-            try saved.write(to: fileURL)
         }
         return saved
     }

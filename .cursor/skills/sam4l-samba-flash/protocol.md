@@ -10,7 +10,7 @@ Local copies (gitignored tree + small bin at skill root):
 | File | Role |
 |---|---|
 | `applet-flash-sam4l4.bin` | Official SRAM applet (2652 bytes). Copy next to this file. |
-| `extracted/tcl_lib/at91sam4l-ek/at91sam4l-ek.tcl` | Board script HP 15C CE uses |
+| `extracted/tcl_lib/at91sam4l-ek/at91sam4l-ek.tcl` | Board script HP 15c CE uses |
 | `extracted/tcl_lib/common/generic.tcl` | Host mailbox / `GENERIC::Run` |
 | `extracted/applets/sam4l/sam-ba_applets/flash/flash_app_main.c` | Applet commands |
 | `extracted/applets/sam4l/sam-ba_applets/common/applet.h` | Command / status codes |
@@ -26,7 +26,7 @@ SHA-256 of `applet-flash-sam4l4.bin`:
 
 ## 1. Confirmed facts
 
-### Board for HP 15C CE (ATSAM4LC2C)
+### Board for HP 15c CE (ATSAM4LC2C)
 
 There is **no** `at91sam4l8-ek` folder in SAM-BA 2.16.
 
@@ -34,7 +34,7 @@ There is **no** `at91sam4l8-ek` folder in SAM-BA 2.16.
   `"sam4l-ek[not factory programmed]"` → `at91sam4l-ek/at91sam4l-ek.tcl`
 - That script accepts CIDR `& 0xFFFFFFE0` matching both:
   - `0xAB0A09E0` (SAM4L4 / 256 KB)
-  - `0xAB0A07E0` (SAM4L2 / 128 KB) ← HP 15C CE
+  - `0xAB0A07E0` (SAM4L2 / 128 KB) ← HP 15c CE
 - Applet is compiled as `__ATSAM4LC4C__` / `sam4l4` but `flashcalw_get_flash_size()` reports the real size at INIT.
 - GUI “Flash” send = `FLASH::SendFileNoLock` (write only; refuses dest page `< appStartPage`).
 - Application start is page 32 = `0x4000`. Applet refuses writes below `MONITOR_SIZE` (`0x4000`).
@@ -99,7 +99,7 @@ WRITE `memoryOffset` is from flash base `0x00000000`, so application page 0 is o
 
 From `applet.h` / `appletCmdSam4l` (SAM4L extras in `at91sam4l-ek.tcl`):
 
-| Name | Word | Use on 15C restore |
+| Name | Word | Use on 15c restore |
 |---|---|---|
 | `APPLET_CMD_INIT` | `0x00` | Load + INIT once |
 | `APPLET_CMD_FULL_ERASE` | `0x01` | **Do not use.** Tcl GUI has it; **applet C has no case** |
@@ -137,7 +137,7 @@ Monitor commands (binary / `N#` already done). `G#` produces **no** serial paylo
 3. `G20002000#` — **not** `G20002001#`.
 4. Wait for completion: **poll `w20002040,4#` until the word equals `~cmd`**. Then `w20002044,4#` for status.
 5. Read INIT outputs (`memorySize`, `bufferAddress`, `bufferSize`, …).
-6. Per 512-byte chunk (HP 15C: 224 pages):
+6. Per 512-byte chunk (HP 15c: 224 pages):
    - `S<bufferAddress>,00000200#` + page bytes
    - `W` command `2`, argv0 = buffer, argv1 = 512, argv2 = flash offset (`0x4000`, `0x4200`, …)
    - `G20002000#`

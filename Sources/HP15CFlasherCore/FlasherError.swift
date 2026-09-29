@@ -44,7 +44,7 @@ public enum FlasherError: Error, Equatable, LocalizedError {
             return "SAM-BA protocol error: \(detail)"
         case .unsupportedDevice(let name, let cidr, let exid):
             return String(
-                format: "Unsupported chip %@ (CIDR=0x%08X EXID=0x%08X). This tool is for the HP 15C Collector’s Edition (ATSAM4LC2C).",
+                format: "Unsupported chip %@ (CIDR=0x%08X EXID=0x%08X). This tool is for post-2015 Voyager calculators (15c CE, 16c CE, 12c) with an ATSAM4LC2C.",
                 name, cidr, exid
             )
         case .verifyMismatch:

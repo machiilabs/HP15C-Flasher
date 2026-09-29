@@ -17,13 +17,13 @@ struct WelcomeView: View {
                     mode: .demo,
                     title: "DEMO",
                     badge: store.hasCompletedDemo ? nil : "Recommended",
-                    detail: "Walk through the full wizard against a simulated calculator on this Mac. No cable. Nothing is written to a real HP 15C Collector’s Edition."
+                    detail: "Walk through the full wizard against a simulated calculator on this Mac. No cable. Nothing is written to a real calculator."
                 )
                 modeCard(
                     mode: .flash,
                     title: "FLASH",
                     badge: nil,
-                    detail: "Talk to a real HP 15C Collector’s Edition over the pogo cable. User memory will be wiped. A wrong file or a write to the bootloader region can brick the calculator."
+                    detail: "Talk to a real post-2015 Voyager calculator over the pogo cable. User memory will be wiped."
                 )
                 modeCard(
                     mode: .batch,

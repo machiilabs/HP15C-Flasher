@@ -1,17 +1,11 @@
 import Foundation
 
-/// Checksum shown on the HP 15C CE test menu (`g`+`ENTER`+`ON`, then `2`).
+/// Checksum shown on the HP 15c CE test menu (`g`+`ENTER`+`ON`, then `2`).
 ///
 /// The ARM Voyager 2.C screen displays an 8-bit additive checksum as a
 /// repeated byte (for example `0A0Ah`). Two matching halves are the whole
 /// scheme — collision odds are 1 in 256.
 public enum VoyagerFirmwareChecksum {
-    /// Factory Collector’s Edition image (test menu `9090h`).
-    public static let factoryDisplayed: UInt16 = 0x9090
-
-    /// Official 2024-06-03 / 120 ms image (test menu `0A0Ah`).
-    public static let official2024Displayed: UInt16 = 0x0A0A
-
     /// Trailing `0x00` padding is ignored; the last remaining byte is the
     /// stored checksum. The displayed value is that byte duplicated.
     public static func displayedValue(of data: Data) -> UInt16 {
@@ -62,121 +56,117 @@ public enum VoyagerFirmwareChecksum {
     }
 }
 
-/// Result of checking a just-saved backup against known stock images.
+/// Result of checking a just-saved backup against the known-firmware list.
 /// Does not assume which `.bin` the user will flash next.
-public enum BackupChecksumAssessment: Equatable, Sendable {
-    /// `9090h` — factory image; backup looks intact.
-    case factoryOriginal(UInt16)
-    /// `0A0Ah` — 2024 official image; backup looks intact.
-    case official2024(UInt16)
-    /// Any other displayed checksum.
-    case unrecognized(UInt16)
+public struct BackupChecksumAssessment: Equatable, Sendable {
+    public let displayed: UInt16
+    /// The firmware now on the calculator, when its checksum is in the known list.
+    public let known: KnownFirmwareEntry?
 
     public init(displayed: UInt16) {
-        switch displayed {
-        case VoyagerFirmwareChecksum.factoryDisplayed:
-            self = .factoryOriginal(displayed)
-        case VoyagerFirmwareChecksum.official2024Displayed:
-            self = .official2024(displayed)
-        default:
-            self = .unrecognized(displayed)
-        }
+        self.displayed = displayed
+        self.known = KnownFirmware.find(displayed)
     }
 
-    public var displayed: UInt16 {
-        switch self {
-        case .factoryOriginal(let value), .official2024(let value), .unrecognized(let value):
-            return value
-        }
-    }
+    public var isRecognized: Bool { known != nil }
 
-    public var isRecognized: Bool {
-        switch self {
-        case .factoryOriginal, .official2024:
-            return true
-        case .unrecognized:
-            return false
-        }
+    /// Default name for saving this firmware, for example `hp15c-ce-original-9090h-20260929.bin`.
+    /// Unlisted firmware gets `firmware-1212h-20260929.bin`.
+    public func defaultBackupFileName(on date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        let base = known?.fileName ?? "firmware"
+        return "\(base)-\(VoyagerFirmwareChecksum.formatted(displayed))-\(formatter.string(from: date)).bin"
     }
 
     public var message: String {
         let label = VoyagerFirmwareChecksum.formatted(displayed)
-        switch self {
-        case .factoryOriginal:
-            return "Checksum \(label). This is the recognized factory installed firmware. It is safe to proceed."
-        case .official2024:
-            return "Checksum \(label): This is a recognized version of the firmware. It is safe to proceed."
-        case .unrecognized:
-            return "Checksum \(label). This is not a recognized firmware version. If you know you are currently using a custom version of the firmware, proceed at your own risk. If you are currently using the factory installed firmware, there may be a problem with the backup."
+        if let known {
+            return "Checksum \(label): \(known.displayName). It is safe to proceed."
         }
+        return unlistedMessage
+    }
+
+    /// The message without "It is safe to proceed.", for showing again after step 3.
+    public var summary: String {
+        if let known {
+            return "Checksum \(VoyagerFirmwareChecksum.formatted(displayed)): \(known.displayName)."
+        }
+        return unlistedMessage
+    }
+
+    private var unlistedMessage: String {
+        let label = VoyagerFirmwareChecksum.formatted(displayed)
+        return "Checksum \(label). This firmware is not in the list of known versions. If your calculator runs firmware that isn’t listed yet, or a custom version, proceed at your own risk. If it runs a listed version, the firmware may not have been read correctly."
     }
 }
 
 /// Verdict for a `.bin` the user picked to flash — independent of the backup dump’s health.
-public enum FirmwareFileAssessment: Equatable, Sendable {
-    /// Chosen file matches the backup already on the calculator.
-    case alreadyOnCalculator(UInt16)
-    /// Official 2024-06-03 / 120 ms image (`0A0Ah`).
-    case knownLatest(UInt16)
-    /// Factory image (`9090h`) while the calculator currently has the 2024 image.
-    case downgradeToFactory(UInt16)
-    /// Factory image (`9090h`), not the latest known drop.
-    case factoryNotLatest(UInt16)
-    /// Checksum is not 9090h or 0A0Ah.
-    case unrecognized(UInt16)
+public struct FirmwareFileAssessment: Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        /// Chosen file matches the backup already on the calculator.
+        case alreadyOnCalculator
+        /// Listed, and not known to be for a different model.
+        case known
+        /// Listed, but for a different model than the listed firmware in the backup.
+        case otherModel
+        /// Not in the known list.
+        case unrecognized
+    }
+
+    public let kind: Kind
+    public let displayed: UInt16
+    /// The chosen file, when its checksum is in the known list.
+    public let known: KnownFirmwareEntry?
+    /// The firmware on the calculator, from the backup. Nil when the backup was skipped or is not listed.
+    public let onCalculator: KnownFirmwareEntry?
 
     public init(displayed: UInt16, backup: BackupChecksumAssessment?) {
+        self.displayed = displayed
+        self.known = KnownFirmware.find(displayed)
+        self.onCalculator = backup?.known
+
         if let backup, backup.displayed == displayed {
-            self = .alreadyOnCalculator(displayed)
-            return
-        }
-        switch displayed {
-        case VoyagerFirmwareChecksum.official2024Displayed:
-            self = .knownLatest(displayed)
-        case VoyagerFirmwareChecksum.factoryDisplayed:
-            if case .official2024 = backup {
-                self = .downgradeToFactory(displayed)
+            kind = .alreadyOnCalculator
+        } else if let known {
+            if let onCalculator, onCalculator.model != known.model {
+                kind = .otherModel
             } else {
-                self = .factoryNotLatest(displayed)
+                kind = .known
             }
-        default:
-            self = .unrecognized(displayed)
+        } else {
+            kind = .unrecognized
         }
     }
 
-    public var displayed: UInt16 {
-        switch self {
-        case .alreadyOnCalculator(let value),
-             .knownLatest(let value),
-             .downgradeToFactory(let value),
-             .factoryNotLatest(let value),
-             .unrecognized(let value):
-            return value
-        }
-    }
-
+    /// Only a listed file checked against listed firmware on the calculator is free of caution.
     public var isCaution: Bool {
-        switch self {
-        case .knownLatest:
-            return false
-        case .alreadyOnCalculator, .downgradeToFactory, .factoryNotLatest, .unrecognized:
-            return true
-        }
+        !(kind == .known && onCalculator != nil)
     }
 
     public var message: String {
         let label = VoyagerFirmwareChecksum.formatted(displayed)
-        switch self {
+        switch kind {
         case .alreadyOnCalculator:
             return "Checksum \(label). This firmware is already on the calculator. You don’t need to install it again."
-        case .knownLatest:
-            return "Checksum \(label). This is the latest known firmware version. It is safe to proceed."
-        case .downgradeToFactory:
-            return "Checksum \(label). This is the factory-installed firmware. The calculator currently has a newer recognized version. Are you sure you want to install it?"
-        case .factoryNotLatest:
-            return "Checksum \(label). This is the factory-installed firmware. It is not the latest known version. Are you sure you want to install it?"
+        case .otherModel:
+            return "Checksum \(label): \(known!.displayName). Your calculator has \(onCalculator!.modelName) firmware, so this file is for a different model. Are you sure you want to install it?"
+        case .known:
+            if onCalculator == nil {
+                return "Checksum \(label): \(known!.displayName). Make sure your calculator is an \(known!.modelName)."
+            }
+            return "Checksum \(label): \(known!.displayName). It is safe to proceed."
         case .unrecognized:
-            return "Checksum \(label). This is not a known firmware version. You may have selected the wrong file, or firmware meant for a different calculator. Are you sure you want to install it?"
+            return "Checksum \(label). This firmware is not in the list of known versions. Make sure it is made for your calculator’s model. Are you sure you want to install it?"
         }
+    }
+
+    /// The message without "It is safe to proceed.", for showing again on step 5.
+    public var summary: String {
+        if kind == .known, onCalculator != nil, let known {
+            return "Checksum \(VoyagerFirmwareChecksum.formatted(displayed)): \(known.displayName)."
+        }
+        return message
     }
 }

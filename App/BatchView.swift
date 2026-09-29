@@ -51,7 +51,7 @@ struct BatchView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("15CE Flasher")
+                Text(store.appTitle)
                     .font(.largeTitle.weight(.semibold))
                 Text(store.batchPhase == .setup
                      ? "BATCH — sequential flash"

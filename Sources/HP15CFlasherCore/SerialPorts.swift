@@ -21,7 +21,7 @@ public protocol SerialPortListing: Sendable {
     func listPorts() throws -> [SerialPort]
 }
 
-/// Lists `/dev/cu.*` nodes. The 15C CE programming cable appears as CDC ACM
+/// Lists `/dev/cu.*` nodes. The 15c CE programming cable appears as CDC ACM
 /// (`cu.usbmodem…`) only after ERASE+RESET puts the calculator in SAM-BA mode.
 public struct DeviceSerialPortListing: SerialPortListing {
     private let deviceDirectory: URL

@@ -16,7 +16,8 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "HP15CFlasherCore"
+            name: "HP15CFlasherCore",
+            resources: [.copy("known-firmware.json")]
         ),
         .executableTarget(
             name: "hp15c-flasher",

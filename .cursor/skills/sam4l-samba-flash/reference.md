@@ -1,4 +1,4 @@
-# SAM4L / HP 15C CE — hardware facts
+# SAM4L / HP 15c CE — hardware facts
 
 ## Chip and map
 
