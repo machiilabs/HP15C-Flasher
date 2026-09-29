@@ -36,6 +36,8 @@ final class FlasherStore: ObservableObject {
     @Published var expectedChecksumLabel = "ChE - - ----h"
     @Published var backupSkipped = false
     @Published var backupFileName: String?
+    /// Firmware read from the calculator on step 3, before the user decides whether to save it.
+    @Published var currentFirmware: Data?
     @Published var backupAssessment: BackupChecksumAssessment?
     @Published var firmwareAssessment: FirmwareFileAssessment?
     @Published var progress: Double?
@@ -105,9 +107,7 @@ final class FlasherStore: ObservableObject {
         firmwareDetail = "No firmware selected."
         expectedChecksumLabel = "ChE - - ----h"
         firmwareAssessment = nil
-        backupSkipped = false
-        backupFileName = nil
-        backupAssessment = nil
+        clearCurrentFirmware()
         wizard.flashSucceeded = false
         lastError = nil
         successMessage = nil
@@ -122,6 +122,34 @@ final class FlasherStore: ObservableObject {
 
     var canBackup: Bool {
         !wizard.isBusy && client != nil && identity?.isSupported15C == true
+    }
+
+    /// Window title and heading while the app is open. FLASH and DEMO follow the calculator found
+    /// on step 3; BATCH follows the firmware every unit receives. Welcome and Connection Probe stay
+    /// 15CE Flasher, and so does the app's own name (menu bar, Dock, Finder).
+    var appTitle: String {
+        let model: String?
+        if showWelcome || isProbeSession {
+            model = nil
+        } else if isBatchSession {
+            model = firmwareAssessment?.known?.model
+        } else {
+            model = backupAssessment?.known?.model
+        }
+        switch model {
+        case "16c Collector’s Edition": return "16CE Flasher"
+        case "12c": return "12c Flasher"
+        default: return "15CE Flasher"
+        }
+    }
+
+    /// The calculator named by the flashed file, or else by the firmware found on step 3.
+    var flashedModelName: String? {
+        firmwareAssessment?.known?.modelName ?? backupAssessment?.known?.modelName
+    }
+
+    var canSaveBackup: Bool {
+        !wizard.isBusy && currentFirmware != nil
     }
 
     var canFlash: Bool {
@@ -142,21 +170,13 @@ final class FlasherStore: ObservableObject {
     var stepBanner: (text: String, caution: Bool)? {
         switch wizard.step {
         case .backup:
-            if !wizard.backupResolved { return nil }
-            if backupSkipped {
-                return ("Backup skipped.", true)
-            }
-            if let assessment = backupAssessment {
-                return (assessment.message, !assessment.isRecognized)
-            }
-            return ("Backup saved.", false)
+            // Shown in the step's "Your current firmware" box instead.
+            return nil
         case .firmware:
-            guard let firmwareAssessment else { return nil }
-            return (firmwareAssessment.message, firmwareAssessment.isCaution)
+            // Shown in the step's "Selected firmware" box instead.
+            return nil
         case .flash:
-            if wizard.flashSucceeded {
-                return ("Flashed and verified.", false)
-            }
+            // "Flashed and verified." is shown in a green box on step 5.
             return nil
         default:
             return nil
@@ -169,7 +189,7 @@ final class FlasherStore: ObservableObject {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
-                if !self.showWelcome {
+                if !self.showWelcome, !self.isPanelOpen {
                     if self.isProbeSession {
                         await self.refreshProbeConnection()
                     } else if self.isBatchSession {
@@ -182,6 +202,16 @@ final class FlasherStore: ObservableObject {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
+    }
+
+    /// True while a file chooser or save dialog is up. The connection poll pauses so no
+    /// serial I/O or reconnect runs underneath the dialog.
+    private var isPanelOpen = false
+
+    private func runPanel(_ panel: NSSavePanel) -> NSApplication.ModalResponse {
+        isPanelOpen = true
+        defer { isPanelOpen = false }
+        return panel.runModal()
     }
 
     func beginChosenSession() {
@@ -256,7 +286,7 @@ final class FlasherStore: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.title = "Choose backup folder"
         panel.message = "Each unit’s backup is saved here as hp15c-YYYYMMDD-HHMMSS-NNN.bin."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard runPanel(panel) == .OK, let url = panel.url else { return }
         batchBackupFolder = url
     }
 
@@ -338,6 +368,9 @@ final class FlasherStore: ObservableObject {
                 : "Waiting for SAM-BA…"
             Task { await refreshConnection() }
         }
+        if wizard.step == .backup, currentFirmware == nil, !wizard.backupResolved {
+            checkCurrentFirmware()
+        }
         if usingSimulator, wizard.step == .checksum {
             markDemoCompleted()
         }
@@ -354,6 +387,7 @@ final class FlasherStore: ObservableObject {
             disconnect()
             wizard.identitySupported = false
             demoConnectAfter = nil
+            clearCurrentFirmware()
         }
         wizard.goBack()
     }
@@ -363,9 +397,9 @@ final class FlasherStore: ObservableObject {
         panel.allowedContentTypes = [.data]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.title = "Choose HP 15C CE firmware"
+        panel.title = "Choose firmware"
         panel.message = "Select a 114,688 (0x1C000) byte file with a .bin extension. This app does not download firmware."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard runPanel(panel) == .OK, let url = panel.url else { return }
         applyFirmware(from: url)
     }
 
@@ -396,43 +430,29 @@ final class FlasherStore: ObservableObject {
         }
     }
 
-    func backup() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.data]
-        panel.nameFieldStringValue = "hp15c-firmware.bin"
-        panel.title = "Save current firmware"
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        backup(to: url)
-    }
-
-    func backup(to url: URL) {
-        backupSkipped = false
-        backupAssessment = nil
+    /// Step 3: read the firmware on the calculator and name it from the known list.
+    func checkCurrentFirmware() {
+        guard !wizard.isBusy else { return }
+        clearCurrentFirmware()
         let existing = client
         let tool = flasher
-        beginBusy(statusText: "Reading firmware…", caption: "Backing up")
+        beginBusy(statusText: "Reading firmware…", caption: "Checking current firmware")
         Task.detached { [weak self] in
             guard let self else { return }
             do {
                 let samba = try await FlasherStore.preparedClient(existing: existing, tool: tool, store: self)
-                try tool.read(to: url, client: samba) { fraction, _ in
+                let data = try tool.readApplication(client: samba) { fraction, _ in
                     Task { @MainActor in
                         self.progress = fraction
-                        self.progressCaption = "Backing up"
+                        self.progressCaption = "Checking current firmware"
                         self.progressIsVerify = false
                     }
                 }
                 await MainActor.run {
-                    self.finishBusySuccess("Backup saved.") {
-                        if let saved = try? Data(contentsOf: url) {
-                            self.backupAssessment = VoyagerFirmwareChecksum.backupAssessment(of: saved)
-                        }
-                        self.backupFileName = url.lastPathComponent
-                        self.wizard.backupResolved = true
-                        if let firmwareURL = self.firmwareURL, let selected = try? Data(contentsOf: firmwareURL) {
-                            self.refreshFirmwareAssessment(selected: selected)
-                        }
+                    self.finishBusySuccess("Firmware checked.") {
+                        self.currentFirmware = data
+                        self.backupAssessment = VoyagerFirmwareChecksum.backupAssessment(of: data)
+                        self.refreshSelectedFirmwareAssessment()
                     }
                 }
             } catch {
@@ -441,13 +461,45 @@ final class FlasherStore: ObservableObject {
         }
     }
 
+    /// Saves the firmware already read on step 3. Nothing is read from the calculator again.
+    func backup() {
+        guard let currentFirmware, let backupAssessment else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.data]
+        panel.nameFieldStringValue = backupAssessment.defaultBackupFileName()
+        panel.title = "Save current firmware"
+        panel.canCreateDirectories = true
+        guard runPanel(panel) == .OK, let url = panel.url else { return }
+        do {
+            try currentFirmware.write(to: url)
+        } catch {
+            lastError = error.localizedDescription
+            return
+        }
+        lastError = nil
+        successMessage = "Backup saved."
+        backupSkipped = false
+        backupFileName = url.lastPathComponent
+        wizard.backupResolved = true
+    }
+
     func skipBackup() {
         confirmSkipBackup = false
         backupSkipped = true
         backupFileName = nil
-        backupAssessment = nil
         wizard.backupResolved = true
-        firmwareAssessment = nil
+    }
+
+    private func clearCurrentFirmware() {
+        currentFirmware = nil
+        backupAssessment = nil
+        backupSkipped = false
+        backupFileName = nil
+        wizard.backupResolved = false
+        refreshSelectedFirmwareAssessment()
+    }
+
+    private func refreshSelectedFirmwareAssessment() {
         if let firmwareURL, let selected = try? Data(contentsOf: firmwareURL) {
             refreshFirmwareAssessment(selected: selected)
         }
@@ -475,13 +527,10 @@ final class FlasherStore: ObservableObject {
             }
             return parts.isEmpty ? "SAM-BA connected" : "Connected \(parts.joined(separator: " · "))"
         case .backup:
-            if backupSkipped { return "Backup skipped" }
-            if let assessment = backupAssessment {
-                let name = backupFileName.map { "Saved \($0) · " } ?? "Saved · "
-                return name + VoyagerFirmwareChecksum.formatted(assessment.displayed)
-            }
-            if let backupFileName { return "Saved backup \(backupFileName)" }
-            return "Backup saved"
+            let checksum = backupAssessment.map { " · " + VoyagerFirmwareChecksum.formatted($0.displayed) } ?? ""
+            if backupSkipped { return "Backup skipped" + checksum }
+            if let backupFileName { return "Saved \(backupFileName)" + checksum }
+            return "Backup saved" + checksum
         case .firmware:
             if let name = firmwareURL?.lastPathComponent {
                 return "Loaded firmware \(name)"
@@ -636,10 +685,11 @@ final class FlasherStore: ObservableObject {
     }
 
     private func refreshFirmwareAssessment(selected: Data) {
+        // The step 3 check knows the calculator's firmware even when the backup was skipped.
         firmwareAssessment = VoyagerFirmwareChecksum.firmwareFileAssessment(
             of: selected,
             backup: backupAssessment,
-            backupSkipped: backupSkipped
+            backupSkipped: false
         )
     }
 

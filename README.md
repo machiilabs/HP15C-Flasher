@@ -1,6 +1,6 @@
 # 15CE Flasher
 
-Native macOS app that flashes **HP 15C Collector’s Edition** firmware over the official USB pogo programming cable. Windows SAM-BA is not required.
+Native macOS app that flashes firmware on post-2015 Voyager calculators (**HP 15c Collector’s Edition**, **HP 16c Collector’s Edition**, and **HP 12c**) over the official USB pogo programming cable. Windows SAM-BA is not required.
 
 Choose **DEMO** to walk through the wizard safely, **FLASH** for one calculator, or **BATCH** to flash many units in sequence with the same firmware.
 
@@ -9,11 +9,11 @@ A Mach II Labs product. Free forever. It does not include HP firmware. Mach II L
 ## Requirements
 
 - macOS 13 or later
-- HP 15C Collector’s Edition
+- HP 15c Collector’s Edition, HP 16c Collector’s Edition, or a post-2015 HP 12c
 - Official USB-C (or USB-A + adapter) pogo programming cable
 - A 114,688-byte (112 KB) `.bin` you already have
 
-**Do not use this cable or this app** on an HP 15C Limited Edition, a pre-2015 HP 12C, an HP 20b, or an HP 30b. Those pogo ports are a different protocol and voltage; the cable can destroy them.
+**Do not use this cable or this app** on an HP 15c Limited Edition, a pre-2015 HP 12c, an HP 20b, or an HP 30b. Those pogo ports are a different protocol and voltage; the cable can destroy them.
 
 ## Disclaimer
 

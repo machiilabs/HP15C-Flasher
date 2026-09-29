@@ -2,7 +2,7 @@
 
 This note explains what happens when you flash firmware with **15CE Flasher**, without assuming you already know SAM-BA jargon.
 
-It is about the **HP 15C Collector’s Edition (CE)** only — the calculator that talks USB over the official pogo programming cable. It does **not** apply to the older Limited Edition or other Voyagers that use a different cable protocol.
+It is about the **HP 15c Collector’s Edition (CE)** only — the calculator that talks USB over the official pogo programming cable. It does **not** apply to the older Limited Edition or other Voyagers that use a different cable protocol.
 
 ---
 
@@ -38,7 +38,7 @@ Holds temporary working data. When you leave programming mode or remove power, S
 
 ---
 
-## Graphical memory map — flash (HP 15C CE)
+## Graphical memory map — flash (HP 15c CE)
 
 The CE uses an **ATSAM4LC2C** with **128 KB** of flash (`0x00000`–`0x1FFFF`).
 
@@ -225,7 +225,7 @@ So the design is deliberate:
 
 | Term | Meaning |
 |------|---------|
-| **CE** | HP 15C Collector’s Edition |
+| **CE** | HP 15c Collector’s Edition |
 | **SAM-BA** | Atmel/Microchip “SAM Boot Assistance” — monitor + host tools for programming SAM micros |
 | **Monitor / bootloader** | Resident program in flash `0x0000–0x3FFF` |
 | **Applet** | Temporary RAM helper that programs flash |

@@ -425,7 +425,7 @@ private struct Step1ScreenMiniature: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("15CE Flasher")
                     .font(.largeTitle.weight(.semibold))
-                Text("Native SAM-BA programmer for the Collector’s Edition")
+                Text("Native SAM-BA programmer for the post-2015 Voyager series")
                     .foregroundStyle(.secondary)
             }
             HStack {
@@ -744,7 +744,7 @@ struct PogoPlugDrawing: View {
     }
 }
 
-/// Line drawing of the 15C CE battery bay, door off, display end at the top.
+/// Line drawing of the 15c CE battery bay, door off, display end at the top.
 /// The keyed pogo connector has a narrow slot on the left and a wide slot on the right.
 struct BatteryBayDrawing: View {
     var body: some View {

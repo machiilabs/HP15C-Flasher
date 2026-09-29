@@ -6,7 +6,7 @@ import HP15CFlasherCore
 struct HP15CFlasherCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "hp15c-flasher",
-        abstract: "Flash HP 15C Collector's Edition firmware from macOS.",
+        abstract: "Flash post-2015 Voyager firmware (HP 15c CE, 16c CE, 12c) from macOS.",
         discussion: """
         The programming cable must be in SAM-BA mode (hold ERASE, press RESET, \
         release ERASE) before the calculator appears as a USB serial device.

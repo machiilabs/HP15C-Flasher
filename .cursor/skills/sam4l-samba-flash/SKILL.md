@@ -1,7 +1,7 @@
 ---
 name: sam4l-samba-flash
 description: >-
-  Research and implement ATSAM4LC2C / HP 15C CE flashing over SAM-BA USB CDC.
+  Research and implement ATSAM4LC2C / HP 15c CE flashing over SAM-BA USB CDC.
   Use when changing SambaClient, FlashCalw, SambaFlashApplet, Flasher, POSIX
   serial, flash wizard, or diagnosing SAM-BA timeouts, USB dropouts, or verify
   failures.

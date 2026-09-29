@@ -9,6 +9,7 @@ struct HP15CFlasherApp: App {
         Window("15CE Flasher", id: "flasher-main") {
             ContentView()
                 .environmentObject(store)
+                .navigationTitle(store.appTitle)
                 .onAppear { store.start() }
                 .onDisappear { store.stop() }
         }

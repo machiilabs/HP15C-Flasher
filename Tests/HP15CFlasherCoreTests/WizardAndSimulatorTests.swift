@@ -1,5 +1,5 @@
 import Foundation
-import HP15CFlasherCore
+@testable import HP15CFlasherCore
 import XCTest
 
 final class WizardStateTests: XCTestCase {
@@ -109,81 +109,94 @@ final class VoyagerFirmwareChecksumTests: XCTestCase {
         XCTAssertEqual(VoyagerFirmwareChecksum.testMenuDisplay(of: payload), "ChE - - 0A0Ah")
     }
 
-    func testFactoryBackupIsOKToProceed() {
-        let data = Data([0x90, 0x90])
-        let assessment = VoyagerFirmwareChecksum.backupAssessment(of: data)
-        XCTAssertEqual(assessment, .factoryOriginal(0x9090))
-        XCTAssertTrue(assessment.message.contains("safe to proceed"))
-        XCTAssertTrue(assessment.message.contains("factory installed"))
-        XCTAssertFalse(assessment.message.contains("already installed"))
+    func testKnownFirmwareListLoads() {
+        XCTAssertFalse(KnownFirmware.all.isEmpty)
+        XCTAssertEqual(KnownFirmware.find(0x9090)?.model, "15c Collector’s Edition")
+        XCTAssertEqual(KnownFirmware.find(0x0E0E)?.model, "16c Collector’s Edition")
+        XCTAssertNil(KnownFirmware.find(0x1234))
     }
 
-    func testOfficial2024BackupIsVerifiedNotAlreadyInstalled() {
+    func testEveryKnownChecksumRepeatsItsByte() {
+        // The calculator shows the 8-bit sum twice, so a real checksum is always XYXYh.
+        for entry in KnownFirmware.all {
+            XCTAssertEqual(entry.checksum >> 8, entry.checksum & 0xFF, VoyagerFirmwareChecksum.formatted(entry.checksum))
+        }
+    }
+
+    func testKnownFirmwareParseRejectsBadLists() {
+        let bad = [
+            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","fileName":"x","description":"a"},{"checksum":"9090","model":"15c Collector’s Edition","fileName":"x","description":"b"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"15C","fileName":"x","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0xZZ","model":"15c Collector’s Edition","fileName":"x","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","fileName":"HP 15c","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","description":"a"}]}"#,
+        ]
+        for json in bad {
+            XCTAssertThrowsError(try KnownFirmware.parse(Data(json.utf8)), json)
+        }
+    }
+
+    func testModelName() {
+        XCTAssertEqual(KnownFirmware.find(0x9090)?.modelName, "HP 15c Collector’s Edition")
+        XCTAssertEqual(KnownFirmware.find(0x0E0E)?.modelName, "HP 16c Collector’s Edition")
+        XCTAssertEqual(KnownFirmwareEntry(checksum: 0x1111, model: "12c", fileName: "x", description: "x").modelName, "HP 12c")
+    }
+
+    func testDefaultBackupFileName() {
+        let date = DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 9, day: 29, hour: 12).date!
+        XCTAssertEqual(BackupChecksumAssessment(displayed: 0x9090).defaultBackupFileName(on: date), "hp15c-ce-original-9090h-20260929.bin")
+        XCTAssertEqual(BackupChecksumAssessment(displayed: 0x0E0E).defaultBackupFileName(on: date), "hp16c-ce-original-0E0Eh-20260929.bin")
+        XCTAssertEqual(BackupChecksumAssessment(displayed: 0x1212).defaultBackupFileName(on: date), "firmware-1212h-20260929.bin")
+    }
+
+    func testBackupNamesKnownFirmware() {
         let assessment = VoyagerFirmwareChecksum.backupAssessment(of: Data([0x0A, 0x0A]))
-        XCTAssertEqual(assessment, .official2024(0x0A0A))
+        XCTAssertTrue(assessment.isRecognized)
+        XCTAssertTrue(assessment.message.contains("June 2024"))
         XCTAssertTrue(assessment.message.contains("safe to proceed"))
-        XCTAssertTrue(assessment.message.contains("recognized version"))
-        XCTAssertFalse(assessment.message.contains("already installed"))
-        XCTAssertEqual(
-            VoyagerFirmwareChecksum.backupAssessment(of: Data([0xA0, 0xA0])),
-            .unrecognized(0xA0A0)
-        )
+        XCTAssertFalse(assessment.summary.contains("safe to proceed"))
+        XCTAssertTrue(assessment.summary.hasSuffix("backup and restore."))
     }
 
-    func testFirmwareFileKnownLatest() {
-        let assessment = VoyagerFirmwareChecksum.firmwareFileAssessment(
-            of: Data([0x0A, 0x0A]),
-            backup: .factoryOriginal(0x9090),
-            backupSkipped: false
-        )
-        XCTAssertEqual(assessment, .knownLatest(0x0A0A))
-        XCTAssertTrue(assessment.message.contains("latest known firmware version"))
-        XCTAssertFalse(assessment.isCaution)
-    }
-
-    func testFirmwareFileFactoryNotLatest() {
-        let assessment = VoyagerFirmwareChecksum.firmwareFileAssessment(
-            of: Data([0x90, 0x90]),
-            backup: nil,
-            backupSkipped: true
-        )
-        XCTAssertEqual(assessment, .factoryNotLatest(0x9090))
-        XCTAssertTrue(assessment.message.contains("not the latest known version"))
-        XCTAssertTrue(assessment.isCaution)
-    }
-
-    func testFirmwareFileDowngradeAndAlreadyOnCalculator() {
-        XCTAssertEqual(
-            VoyagerFirmwareChecksum.firmwareFileAssessment(
-                of: Data([0x90, 0x90]),
-                backup: .official2024(0x0A0A),
-                backupSkipped: false
-            ),
-            .downgradeToFactory(0x9090)
-        )
-        XCTAssertEqual(
-            VoyagerFirmwareChecksum.firmwareFileAssessment(
-                of: Data([0x0A, 0x0A]),
-                backup: .official2024(0x0A0A),
-                backupSkipped: false
-            ),
-            .alreadyOnCalculator(0x0A0A)
-        )
-        XCTAssertEqual(
-            VoyagerFirmwareChecksum.firmwareFileAssessment(
-                of: Data([0x01, 0x01]),
-                backup: nil,
-                backupSkipped: true
-            ),
-            .unrecognized(0x0101)
-        )
-    }
-
-    func testUnknownBackupWarns() {
+    func testBackupOfUnlistedFirmwareIsNotBlamedOnTheUser() {
         let assessment = VoyagerFirmwareChecksum.backupAssessment(of: Data([0x01, 0x01]))
-        XCTAssertEqual(assessment, .unrecognized(0x0101))
-        XCTAssertTrue(assessment.message.contains("not a recognized firmware version"))
+        XCTAssertFalse(assessment.isRecognized)
         XCTAssertTrue(assessment.message.hasPrefix("Checksum 0101h."))
+        XCTAssertTrue(assessment.message.contains("not in the list of known versions"))
+    }
+
+    func testFirmwareFileAgainstBackup() {
+        let cases: [(onCalculator: UInt16, file: UInt16, kind: FirmwareFileAssessment.Kind)] = [
+            (0x0A0A, 0x0A0A, .alreadyOnCalculator),
+            (0x0A0A, 0x9090, .known),
+            (0x9090, 0x0E0E, .otherModel),
+            (0x0E0E, 0x0A0A, .otherModel),
+            (0x1212, 0x0E0E, .known),
+            (0x9090, 0x1212, .unrecognized),
+        ]
+        for c in cases {
+            let assessment = FirmwareFileAssessment(displayed: c.file, backup: BackupChecksumAssessment(displayed: c.onCalculator))
+            XCTAssertEqual(assessment.kind, c.kind, "\(c.onCalculator) -> \(c.file)")
+        }
+    }
+
+    func testCautionOnlyWhenModelCannotBeConfirmed() {
+        let checked = FirmwareFileAssessment(displayed: 0x0A0A, backup: BackupChecksumAssessment(displayed: 0x9090))
+        XCTAssertFalse(checked.isCaution)
+        XCTAssertTrue(checked.message.contains("safe to proceed"))
+        XCTAssertEqual(checked.summary, "Checksum 0A0Ah: \(KnownFirmware.find(0x0A0A)!.displayName).")
+
+        let skipped = VoyagerFirmwareChecksum.firmwareFileAssessment(of: Data([0x0E, 0x0E]), backup: nil, backupSkipped: true)
+        XCTAssertEqual(skipped.kind, .known)
+        XCTAssertTrue(skipped.isCaution)
+        XCTAssertTrue(skipped.message.contains("Make sure your calculator is an HP 16c"))
+    }
+
+    func testOtherModelNamesBothModels() {
+        let assessment = FirmwareFileAssessment(displayed: 0x0E0E, backup: BackupChecksumAssessment(displayed: 0x9090))
+        XCTAssertTrue(assessment.isCaution)
+        XCTAssertTrue(assessment.message.contains("16c Collector’s Edition original firmware"))
+        XCTAssertTrue(assessment.message.contains("Your calculator has HP 15c Collector’s Edition firmware"))
     }
 }
 
@@ -257,7 +270,7 @@ final class SimulatedCalculatorTests: XCTestCase {
         try flasher.read(to: url, client: connected.client)
         let saved = try Data(contentsOf: url)
         XCTAssertEqual(saved.count, FlashLayout.expectedFirmwareByteCount)
-        XCTAssertEqual(VoyagerFirmwareChecksum.backupAssessment(of: saved), .factoryOriginal(0x9090))
+        XCTAssertEqual(VoyagerFirmwareChecksum.backupAssessment(of: saved).known?.checksum, 0x9090)
     }
 
     func testSimulatedSequentialFlashWrites() throws {

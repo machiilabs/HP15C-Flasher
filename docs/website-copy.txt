@@ -1,12 +1,12 @@
 15CE Flasher for Mac
 
-Native macOS app that flashes HP 15C Collector’s Edition firmware over the USB-C pogo programming cable. Windows SAM-BA is not required.
+Native macOS app that flashes HP 15c Collector’s Edition firmware over the USB-C pogo programming cable. Windows SAM-BA is not required.
 
 Modes: DEMO (simulated walkthrough), FLASH (one calculator, full wizard), BATCH (sequential flash with the same firmware for experienced operators).
 
 Requirements
 - macOS 13 or later
-- HP 15C Collector’s Edition
+- HP 15c Collector’s Edition
 - Official USB-C (or USB-A + adapter) pogo programming cable
 - A 112 KB firmware .bin you already have (this download does not include HP firmware)
 
@@ -33,7 +33,7 @@ The SRAM flash helper is `applet-flash-sam4l4.bin` from Atmel SAM-BA 2.16, © 20
 Privacy
 The app is offline. No telemetry, no network, no automatic diagnostics. Firmware files never leave this Mac.
 
-Not for HP 15C Limited Edition, pre-2015 HP 12C, HP 20b, or HP 30b. Those pogo ports are a different protocol and voltage; this cable can destroy them.
+Not for HP 15c Limited Edition, pre-2015 HP 12c, HP 20b, or HP 30b. Those pogo ports are a different protocol and voltage; this cable can destroy them.
 
 Disclaimer
 15CE Flasher and related documentation are provided as is, without warranty of any kind. Although we have employed several safeguards to help keep this software safe, flashing firmware can wipe user memory, leave the calculator unusable, or permanently brick the device. You are solely responsible for backups, choosing a correct firmware file, and following the app’s instructions. If the instructions are not clear in DEMO mode, do not execute in FLASH mode. Mach II Labs is not liable for damage, data loss, or repair costs arising from use of this software.
