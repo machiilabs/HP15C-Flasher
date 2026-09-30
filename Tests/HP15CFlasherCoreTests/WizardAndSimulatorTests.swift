@@ -171,6 +171,8 @@ final class VoyagerFirmwareChecksumTests: XCTestCase {
             (0x0A0A, 0x9090, .known),
             (0x9090, 0x0E0E, .otherModel),
             (0x0E0E, 0x0A0A, .otherModel),
+            (0x0E0E, 0x8989, .known),
+            (0x8989, 0x9090, .otherModel),
             (0x1212, 0x0E0E, .known),
             (0x9090, 0x1212, .unrecognized),
         ]
