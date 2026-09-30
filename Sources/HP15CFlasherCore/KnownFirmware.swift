@@ -3,24 +3,21 @@ import Foundation
 /// One firmware the app recognizes by its test-menu checksum.
 public struct KnownFirmwareEntry: Equatable, Sendable {
     public let checksum: UInt16
-    /// `15c Collector’s Edition`, `16c Collector’s Edition`, or `12c`.
+    /// Full model name including the manufacturer: `HP 15c Collector’s Edition`, `HP 16c Collector’s Edition`, or `HP 12c`.
     public let model: String
     /// Start of the default backup name, for example `hp15c-ce-original`.
     public let fileName: String
     /// The firmware version, without the model, for example `original firmware`.
     public let description: String
 
-    /// `HP 15c Collector’s Edition`, `HP 16c Collector’s Edition`, or `HP 12c`.
-    public var modelName: String { "HP \(model)" }
-
     /// Model and version, for example `HP 15c Collector’s Edition original firmware`.
-    public var displayName: String { "\(modelName) \(description)" }
+    public var displayName: String { "\(model) \(description)" }
 }
 
 /// The known-firmware list in `known-firmware.json` (a package resource).
 /// The Windows app keeps an identical copy, so edit the JSON rather than adding entries here.
 public enum KnownFirmware {
-    public static let models = ["15c Collector’s Edition", "16c Collector’s Edition", "12c"]
+    public static let models = ["HP 15c Collector’s Edition", "HP 16c Collector’s Edition", "HP 12c"]
 
     public static let all: [KnownFirmwareEntry] = {
         guard let url = Bundle.module.url(forResource: "known-firmware", withExtension: "json") else {

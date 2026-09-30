@@ -137,15 +137,15 @@ final class FlasherStore: ObservableObject {
             model = backupAssessment?.known?.model
         }
         switch model {
-        case "16c Collector’s Edition": return "16CE Flasher"
-        case "12c": return "12c Flasher"
+        case "HP 16c Collector’s Edition": return "16CE Flasher"
+        case "HP 12c": return "12c Flasher"
         default: return "15CE Flasher"
         }
     }
 
     /// The calculator named by the flashed file, or else by the firmware found on step 3.
     var flashedModelName: String? {
-        firmwareAssessment?.known?.modelName ?? backupAssessment?.known?.modelName
+        firmwareAssessment?.known?.model ?? backupAssessment?.known?.model
     }
 
     var canSaveBackup: Bool {

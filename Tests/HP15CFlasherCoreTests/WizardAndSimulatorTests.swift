@@ -111,8 +111,8 @@ final class VoyagerFirmwareChecksumTests: XCTestCase {
 
     func testKnownFirmwareListLoads() {
         XCTAssertFalse(KnownFirmware.all.isEmpty)
-        XCTAssertEqual(KnownFirmware.find(0x9090)?.model, "15c Collector’s Edition")
-        XCTAssertEqual(KnownFirmware.find(0x0E0E)?.model, "16c Collector’s Edition")
+        XCTAssertEqual(KnownFirmware.find(0x9090)?.model, "HP 15c Collector’s Edition")
+        XCTAssertEqual(KnownFirmware.find(0x0E0E)?.model, "HP 16c Collector’s Edition")
         XCTAssertNil(KnownFirmware.find(0x1234))
     }
 
@@ -125,21 +125,24 @@ final class VoyagerFirmwareChecksumTests: XCTestCase {
 
     func testKnownFirmwareParseRejectsBadLists() {
         let bad = [
-            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","fileName":"x","description":"a"},{"checksum":"9090","model":"15c Collector’s Edition","fileName":"x","description":"b"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"HP 15c Collector’s Edition","fileName":"x","description":"a"},{"checksum":"9090","model":"HP 15c Collector’s Edition","fileName":"x","description":"b"}]}"#,
             #"{"firmware":[{"checksum":"0x9090","model":"15C","fileName":"x","description":"a"}]}"#,
-            #"{"firmware":[{"checksum":"0xZZ","model":"15c Collector’s Edition","fileName":"x","description":"a"}]}"#,
-            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","fileName":"HP 15c","description":"a"}]}"#,
-            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"15c Collector’s Edition","fileName":"x","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0xZZ","model":"HP 15c Collector’s Edition","fileName":"x","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"HP 15c Collector’s Edition","fileName":"HP 15c","description":"a"}]}"#,
+            #"{"firmware":[{"checksum":"0x9090","model":"HP 15c Collector’s Edition","description":"a"}]}"#,
         ]
         for json in bad {
             XCTAssertThrowsError(try KnownFirmware.parse(Data(json.utf8)), json)
         }
     }
 
-    func testModelName() {
-        XCTAssertEqual(KnownFirmware.find(0x9090)?.modelName, "HP 15c Collector’s Edition")
-        XCTAssertEqual(KnownFirmware.find(0x0E0E)?.modelName, "HP 16c Collector’s Edition")
-        XCTAssertEqual(KnownFirmwareEntry(checksum: 0x1111, model: "12c", fileName: "x", description: "x").modelName, "HP 12c")
+    func testModelIncludesManufacturer() {
+        for entry in KnownFirmware.all {
+            XCTAssertTrue(KnownFirmware.models.contains(entry.model), entry.model)
+        }
+        XCTAssertEqual(KnownFirmware.find(0x9090)?.displayName, "HP 15c Collector’s Edition original firmware")
+        XCTAssertEqual(KnownFirmwareEntry(checksum: 0x1111, model: "HP 12c", fileName: "x", description: "original firmware").displayName, "HP 12c original firmware")
     }
 
     func testDefaultBackupFileName() {
@@ -171,6 +174,8 @@ final class VoyagerFirmwareChecksumTests: XCTestCase {
             (0x0A0A, 0x9090, .known),
             (0x9090, 0x0E0E, .otherModel),
             (0x0E0E, 0x0A0A, .otherModel),
+            (0x0E0E, 0x8989, .known),
+            (0x8989, 0x9090, .otherModel),
             (0x1212, 0x0E0E, .known),
             (0x9090, 0x1212, .unrecognized),
         ]

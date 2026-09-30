@@ -151,10 +151,10 @@ public struct FirmwareFileAssessment: Equatable, Sendable {
         case .alreadyOnCalculator:
             return "Checksum \(label). This firmware is already on the calculator. You don’t need to install it again."
         case .otherModel:
-            return "Checksum \(label): \(known!.displayName). Your calculator has \(onCalculator!.modelName) firmware, so this file is for a different model. Are you sure you want to install it?"
+            return "Checksum \(label): \(known!.displayName). Your calculator has \(onCalculator!.model) firmware, so this file is for a different model. Are you sure you want to install it?"
         case .known:
             if onCalculator == nil {
-                return "Checksum \(label): \(known!.displayName). Make sure your calculator is an \(known!.modelName)."
+                return "Checksum \(label): \(known!.displayName). Make sure your calculator is an \(known!.model)."
             }
             return "Checksum \(label): \(known!.displayName). It is safe to proceed."
         case .unrecognized:
