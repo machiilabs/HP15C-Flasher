@@ -1,26 +1,26 @@
 ---
-description: flash-official-sam4l-applet is the protected release branch. Branching, merging, and release rules.
+description: main is the protected release branch. Branching, merging, and release rules.
 alwaysApply: true
 ---
 
-# flash-official-sam4l-applet is the release branch
+# main is the release branch
 
-`flash-official-sam4l-applet` is this repo's default branch. Every 15CE Flasher for Mac release is built and tagged from it. GitHub protects it ("Protect main" ruleset): no direct pushes, no force pushes, and changes arrive only through pull requests the user merges.
+`main` is this repo's default branch. Every 15CE Flasher for Mac release is built and tagged from it. GitHub protects it ("Protect main" ruleset): no direct pushes, no force pushes, and changes arrive only through pull requests the user merges.
 
 ## Never, without the user's explicit words for this exact action
 
-- Merge, push, rebase, or tag on `flash-official-sam4l-applet`. "commit", "push", "build", or finishing a task is not permission.
+- Merge, push, rebase, or tag on `main`. "commit", "push", "build", or finishing a task is not permission.
 - Upload to downloads.machiilabs.com, or overwrite a file that is already there.
 - Change what machiilabs.com offers for download.
 
 ## Every new branch starts from the release branch on origin
 
 ```bash
-git fetch origin flash-official-sam4l-applet
-git switch -c <name> origin/flash-official-sam4l-applet
+git fetch origin main
+git switch -c <name> origin/main
 ```
 
-Check it before proposing a merge: `git log --oneline origin/flash-official-sam4l-applet..<branch>` must list only that task's commits.
+Check it before proposing a merge: `git log --oneline origin/main..<branch>` must list only that task's commits.
 
 ## Shipping a release
 
